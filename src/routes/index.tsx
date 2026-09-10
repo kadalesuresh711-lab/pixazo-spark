@@ -735,7 +735,7 @@ function Index() {
             `[client] worker ${me} drawing panels ${group.map((g) => g.seg.index + 1).join(",")} · queue=${queue.length}`,
           );
           try {
-            const { results } = await drawBatch({
+            const { results, cancelled } = await drawBatch({
               data: {
                 ...stamp(),
                 bible: b,
