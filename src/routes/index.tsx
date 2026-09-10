@@ -213,6 +213,14 @@ async function getPrompts(input: PromptRequest): Promise<{ prompts: string[] }> 
       PROMPT_IDLE_TIMEOUT_MS,
     );
   };
+  let cleaned = false;
+  const cleanup = () => {
+    if (cleaned) return;
+    cleaned = true;
+    window.clearTimeout(idleTimer);
+    untrack();
+  };
+  try {
   let response: Response;
   try {
     response = await fetch("/api/prompts", {
@@ -294,6 +302,11 @@ async function getPrompts(input: PromptRequest): Promise<{ prompts: string[] }> 
     `[client] prompts ${label} done in ${Date.now() - t0}ms: ${written}/${result.length} written`,
   );
   return { prompts: result };
+  } finally {
+    // Unconditional cleanup: a failed, rejected or aborted stream can never
+    // stay tracked with a live idle timer.
+    cleanup();
+  }
 }
 
 function Index() {
