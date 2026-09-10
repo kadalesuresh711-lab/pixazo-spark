@@ -537,7 +537,7 @@ export async function writePrompts(
         `[prompts] after repair ${from}-${to}: ${byNumber.size}/${count} filled in ${Date.now() - t1}ms`,
       );
     } catch (e) {
-      if (e instanceof KilledError) throw e;
+      if (e instanceof KilledError || e instanceof RateLimitedError) throw e;
       console.error(
         `[prompts] repair FAILED ${from}-${to} after ${Date.now() - t1}ms:`,
         e instanceof Error ? e.message : e,
