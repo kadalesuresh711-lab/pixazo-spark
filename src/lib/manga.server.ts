@@ -1,6 +1,7 @@
 import type { Segment } from "./script";
 import { pixazoKeys, pickKey } from "./keys.server";
 import { textChat } from "./text-engine.server";
+import { RateLimitedError } from "./agnes.server";
 import { assertRunAlive, killableSignal, KilledError } from "./kill-switch.server";
 
 const PIXAZO_URL = "https://gateway.pixazo.ai/flux-1-schnell/v1/getData";
