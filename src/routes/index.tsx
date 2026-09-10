@@ -258,10 +258,17 @@ async function getPrompts(input: PromptRequest): Promise<{ prompts: string[] }> 
     }
     if (data.length === 0) return;
     events++;
-    const payload = JSON.parse(data.join("\n")) as { prompts?: string[]; error?: string };
+    const payload = JSON.parse(data.join("\n")) as {
+      prompts?: string[];
+      error?: string;
+      rateLimited?: boolean;
+    };
     console.log(`[client] prompts ${label} event "${event}" at ${Date.now() - t0}ms`);
     if (event === "result" && Array.isArray(payload.prompts)) result = payload.prompts;
-    if (event === "failure") failure = payload.error || "Prompt generation failed";
+    if (event === "failure") {
+      failure = payload.error || "Prompt generation failed";
+      limited = payload.rateLimited === true;
+    }
   };
 
   for (;;) {
