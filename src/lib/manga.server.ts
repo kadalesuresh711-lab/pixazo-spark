@@ -1,6 +1,7 @@
 import type { Segment } from "./script";
 import { pixazoKeys, pickKey } from "./keys.server";
 import { textChat } from "./text-engine.server";
+import { RateLimitedError } from "./agnes.server";
 import { assertRunAlive, killableSignal, KilledError } from "./kill-switch.server";
 
 const PIXAZO_URL = "https://gateway.pixazo.ai/flux-1-schnell/v1/getData";
@@ -198,7 +199,7 @@ export async function buildCharacterBible(script: string): Promise<string> {
     const bible = stripFences(out).slice(0, 4000);
     if (bible.length > 20) return bible;
   } catch (e) {
-    if (e instanceof KilledError) throw e;
+    if (e instanceof KilledError || e instanceof RateLimitedError) throw e;
     console.error("buildCharacterBible failed, continuing without a bible:", e);
   }
   return "";
@@ -518,7 +519,7 @@ export async function writePrompts(
     absorb(raw, wanted);
     console.log(`[prompts] after main pass ${from}-${to}: ${byNumber.size}/${count} filled`);
   } catch (e) {
-    if (e instanceof KilledError) throw e;
+    if (e instanceof KilledError || e instanceof RateLimitedError) throw e;
     console.error(
       `[prompts] main pass FAILED ${from}-${to} after ${Date.now() - t0}ms:`,
       e instanceof Error ? e.message : e,
@@ -537,7 +538,7 @@ export async function writePrompts(
         `[prompts] after repair ${from}-${to}: ${byNumber.size}/${count} filled in ${Date.now() - t1}ms`,
       );
     } catch (e) {
-      if (e instanceof KilledError) throw e;
+      if (e instanceof KilledError || e instanceof RateLimitedError) throw e;
       console.error(
         `[prompts] repair FAILED ${from}-${to} after ${Date.now() - t1}ms:`,
         e instanceof Error ? e.message : e,

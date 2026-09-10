@@ -44,6 +44,26 @@ const MAX_QUEUE_WAIT_MS = 120_000;
  */
 const MAX_RETRY_DELAY_MS = 5_000;
 
+/**
+ * The provider sits behind Cloudflare. Once Cloudflare answers "error code:
+ * 1015" it is rate limiting THIS server's address, and every further call is
+ * refused in a few milliseconds. Retrying straight away only keeps the block
+ * alive, so a 1015/429 fails the call at once and the browser is told to wait.
+ */
+export class RateLimitedError extends Error {
+  constructor(detail: string) {
+    super(
+      `Text service is rate limiting this server (${detail}). ` +
+        "Waiting before asking again — no request is lost.",
+    );
+    this.name = "RateLimitedError";
+  }
+}
+
+function rateLimited(status: number, body: string): boolean {
+  return status === 429 || /error code:?\s*1015|\b1015\b/i.test(body);
+}
+
 let lastUsed = 0;
 let inFlight = 0;
 const waiting: (() => void)[] = [];
@@ -188,6 +208,13 @@ async function callAgnes(user: string, opts: ChatOptions): Promise<string> {
         );
 
 
+        // A Cloudflare rate limit is answered in a few ms and stays in force
+        // while it keeps being hit. Give up immediately and let the caller wait
+        // instead of burning the remaining attempts against a closed door.
+        if (rateLimited(res.status, body)) {
+          throw new RateLimitedError(body.slice(0, 120) || `HTTP ${res.status}`);
+        }
+
         if (busy(res.status, body)) {
           // Retry-After is CLAMPED: a rate-limited account (Cloudflare 1015)
           // reports multi-minute waits, and honouring them froze the run.
@@ -198,7 +225,7 @@ async function callAgnes(user: string, opts: ChatOptions): Promise<string> {
         if (res.status === 400 || res.status === 401 || res.status === 403) break;
         await backoff(1_200 * (attempt + 1));
       } catch (e) {
-        if (e instanceof KilledError) throw e;
+        if (e instanceof KilledError || e instanceof RateLimitedError) throw e;
         lastErr = e instanceof Error ? e.message : String(e);
         console.error(`[agnes] attempt ${attempt + 1} threw after ${Date.now() - started}ms: ${lastErr}`);
         assertRunAlive();
