@@ -175,7 +175,7 @@ async function callAgnes(user: string, opts: ChatOptions): Promise<string> {
           lastErr = err
             ? `${err.code ?? "error"} ${err.message ?? ""}`.trim()
             : "empty completion";
-          await sleep(1_500 * (attempt + 1));
+          await backoff(1_500 * (attempt + 1));
           continue;
         }
 
@@ -187,18 +187,20 @@ async function callAgnes(user: string, opts: ChatOptions): Promise<string> {
 
 
         if (busy(res.status, body)) {
+          // Retry-After is CLAMPED: a rate-limited account (Cloudflare 1015)
+          // reports multi-minute waits, and honouring them froze the run.
           const retryAfter = Number(res.headers.get("retry-after") ?? 0);
-          await sleep(retryAfter > 0 ? retryAfter * 1000 + 500 : 3_000 * (attempt + 1));
+          await backoff(retryAfter > 0 ? retryAfter * 1000 + 500 : 3_000 * (attempt + 1));
           continue;
         }
         if (res.status === 400 || res.status === 401 || res.status === 403) break;
-        await sleep(1_200 * (attempt + 1));
+        await backoff(1_200 * (attempt + 1));
       } catch (e) {
         if (e instanceof KilledError) throw e;
         lastErr = e instanceof Error ? e.message : String(e);
         console.error(`[agnes] attempt ${attempt + 1} threw after ${Date.now() - started}ms: ${lastErr}`);
         assertRunAlive();
-        await sleep(1_000 * (attempt + 1));
+        await backoff(1_000 * (attempt + 1));
       } finally {
         gate.release();
       }
