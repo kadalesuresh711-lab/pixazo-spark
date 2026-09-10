@@ -496,6 +496,11 @@ function Index() {
     setVideoUrl(null);
     setSavedTo(null);
     await beginFreshRun();
+    // Every browser update below belongs to THIS run. A run that has been
+    // superseded (Insta Kill, or a newer run started) can no longer move
+    // progress, write checkpoints or declare the work finished.
+    const myRun = runStampOrUndefined();
+    const isCurrentRun = () => runStampOrUndefined() === myRun;
     setPhase("running");
     const key = scriptKey(sourceScript);
     let b = existingBible ?? "";
@@ -511,9 +516,11 @@ function Index() {
         b = res.bible;
         list = res.segments.map((s) => ({ ...s, status: "waiting" as const }));
       }
+      if (!isCurrentRun()) return;
       setBible(b);
       setShots(list);
       const checkpoint = (state: SavedRun<Shot>["state"] = "running") => {
+        if (!isCurrentRun()) return Promise.resolve();
         const data = { script: sourceScript, bible: b, shots: list, state };
         activeRunRef.current = { key, data };
         return saveProgress(key, data);
