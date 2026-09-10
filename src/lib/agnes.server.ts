@@ -225,7 +225,7 @@ async function callAgnes(user: string, opts: ChatOptions): Promise<string> {
         if (res.status === 400 || res.status === 401 || res.status === 403) break;
         await backoff(1_200 * (attempt + 1));
       } catch (e) {
-        if (e instanceof KilledError) throw e;
+        if (e instanceof KilledError || e instanceof RateLimitedError) throw e;
         lastErr = e instanceof Error ? e.message : String(e);
         console.error(`[agnes] attempt ${attempt + 1} threw after ${Date.now() - started}ms: ${lastErr}`);
         assertRunAlive();
