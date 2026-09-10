@@ -103,6 +103,8 @@ function busy(status: number, body: string): boolean {
     status === 502 ||
     status === 503 ||
     status === 504 ||
+    // Cloudflare 1015 = "you are being rate limited" in front of the provider.
+    /error code:?\s*1015|\b1015\b/i.test(body) ||
     /overloaded|temporarily|rate limit|Upstream error|Provider returned error|no available channel/i.test(body)
   );
 }
