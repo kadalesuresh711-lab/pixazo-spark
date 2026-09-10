@@ -801,6 +801,12 @@ function Index() {
             console.error(
               `[client] worker ${me} batch failed after ${Date.now() - batchStart}ms: ${msg}`,
             );
+            // Insta Kill / a superseded run is cancellation for the whole
+            // batch: stop, never re-queue the panels as ordinary failures.
+            if (/Insta Kill|cancelled|KilledError/i.test(msg) || !isCurrentRun()) {
+              inFlight--;
+              return;
+            }
             group.forEach((g) => requeue(g, msg));
           } finally {
             inFlight--;
