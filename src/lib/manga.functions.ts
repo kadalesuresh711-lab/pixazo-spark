@@ -3,7 +3,7 @@ import { z } from "zod";
 import { parseScript } from "./script";
 import { buildCharacterBible, writePrompts, renderPanel } from "./manga.server";
 import { engineStatus } from "./agnes.server";
-import { withRun } from "./kill-switch.server";
+import { withRun, KilledError } from "./kill-switch.server";
 
 const SegmentSchema = z.object({
   index: z.number(),
