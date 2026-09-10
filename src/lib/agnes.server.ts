@@ -44,6 +44,26 @@ const MAX_QUEUE_WAIT_MS = 120_000;
  */
 const MAX_RETRY_DELAY_MS = 5_000;
 
+/**
+ * The provider sits behind Cloudflare. Once Cloudflare answers "error code:
+ * 1015" it is rate limiting THIS server's address, and every further call is
+ * refused in a few milliseconds. Retrying straight away only keeps the block
+ * alive, so a 1015/429 fails the call at once and the browser is told to wait.
+ */
+export class RateLimitedError extends Error {
+  constructor(detail: string) {
+    super(
+      `Text service is rate limiting this server (${detail}). ` +
+        "Waiting before asking again — no request is lost.",
+    );
+    this.name = "RateLimitedError";
+  }
+}
+
+function rateLimited(status: number, body: string): boolean {
+  return status === 429 || /error code:?\s*1015|\b1015\b/i.test(body);
+}
+
 let lastUsed = 0;
 let inFlight = 0;
 const waiting: (() => void)[] = [];
