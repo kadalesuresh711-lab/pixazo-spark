@@ -129,6 +129,15 @@ const IMAGE_BATCH = 4;
  */
 const CLIENT_BLANK_CHECK = false;
 const PROMPT_IDLE_TIMEOUT_MS = 45_000;
+/**
+ * The text provider sits behind Cloudflare, which starts refusing every call
+ * with "error code: 1015" once the live server has used it heavily — and keeps
+ * refusing for as long as it is hit. So the page waits this long before asking
+ * again (doubling each time), instead of retrying instantly and holding the
+ * block open, which is what made a third script sit on "Reading script…".
+ */
+const RATE_LIMIT_WAIT_MS = 60_000;
+const RATE_LIMIT_MAX_WAITS = 6;
 /** Panels shown in the preview grid before "show all" (a 2h script has 1000+). */
 const PREVIEW_LIMIT = 60;
 
