@@ -613,6 +613,45 @@ function Index() {
         text: s.text,
       }));
 
+      /**
+       * Every prompt request goes through here so the whole page shares ONE
+       * cooldown. When the text provider answers "rate limited" (Cloudflare
+       * 1015), asking again straight away keeps the block in place, so the run
+       * pauses, tells the user, and then retries the very same range.
+       */
+      const askPrompts = async (input: PromptRequest): Promise<{ prompts: string[] }> => {
+        let wait = RATE_LIMIT_WAIT_MS;
+        for (let attempt = 0; attempt <= RATE_LIMIT_MAX_WAITS; attempt++) {
+          try {
+            return await getPrompts(input);
+          } catch (e) {
+            const limited = (e as { rateLimited?: boolean }).rateLimited === true;
+            if (!limited || attempt === RATE_LIMIT_MAX_WAITS || cancelRef.current) {
+              if (limited) {
+                throw Object.assign(
+                  new Error(
+                    "The text service is still rate limiting this site. Nothing was lost — " +
+                      "press Resume in a few minutes and it will carry on from here.",
+                  ),
+                  { fatal: true },
+                );
+              }
+              throw e;
+            }
+            const until = Date.now() + wait;
+            while (Date.now() < until && !cancelRef.current && isCurrentRun()) {
+              const left = Math.ceil((until - Date.now()) / 1000);
+              if (isCurrentRun())
+                setNote(`Text service is busy (rate limited) — waiting ${left}s, then continuing…`);
+              await new Promise((r) => setTimeout(r, 1000));
+            }
+            if (cancelRef.current || !isCurrentRun()) throw e;
+            wait = Math.min(wait * 2, 10 * 60_000);
+          }
+        }
+        throw new Error("Prompt request failed");
+      };
+
       const promptStage = (async () => {
         console.log(
           `[client] prompt stage: ${ranges.length} ranges for ${needPrompts.length} lines of ${total}`,
