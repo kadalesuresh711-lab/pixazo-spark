@@ -43,15 +43,35 @@ export const Route = createFileRoute("/api/prompts")({
             let closed = false;
             const send = (event: string, data: unknown) => {
               if (closed) return;
-              controller.enqueue(
-                encoder.encode(`event: ${event}\ndata: ${JSON.stringify(data)}\n\n`),
-              );
+              try {
+                controller.enqueue(
+                  encoder.encode(`event: ${event}\ndata: ${JSON.stringify(data)}\n\n`),
+                );
+              } catch {
+                // The reader is gone (aborted/rejected stream): stop writing.
+                closed = true;
+              }
+            };
+
+            // Cleanup runs for every outcome — resolved, failed, rejected or
+            // aborted — so no stream stays tracked with a live heartbeat.
+            let heartbeat: ReturnType<typeof setInterval> | undefined;
+            const finish = () => {
+              if (heartbeat !== undefined) clearInterval(heartbeat);
+              heartbeat = undefined;
+              if (closed) return;
+              closed = true;
+              try {
+                controller.close();
+              } catch {
+                /* already closed by the platform */
+              }
             };
 
             // Flush response headers immediately, then keep the published
             // connection active while Agnes streams its long answer upstream.
             send("started", { from: input.from, to: input.to });
-            const heartbeat = setInterval(() => send("heartbeat", { at: Date.now() }), 10_000);
+            heartbeat = setInterval(() => send("heartbeat", { at: Date.now() }), 10_000);
 
             void withRun(input.runAt, () =>
               writePrompts(input.bible, input.segments, input.from, input.to),
@@ -62,11 +82,12 @@ export const Route = createFileRoute("/api/prompts")({
                   error: error instanceof Error ? error.message : String(error),
                 }),
               )
-              .finally(() => {
-                clearInterval(heartbeat);
-                closed = true;
-                controller.close();
-              });
+              .then(finish, finish);
+
+            cleanup = finish;
+          },
+          cancel() {
+            cleanup?.();
           },
         });
 
