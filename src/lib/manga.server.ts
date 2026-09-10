@@ -518,7 +518,7 @@ export async function writePrompts(
     absorb(raw, wanted);
     console.log(`[prompts] after main pass ${from}-${to}: ${byNumber.size}/${count} filled`);
   } catch (e) {
-    if (e instanceof KilledError) throw e;
+    if (e instanceof KilledError || e instanceof RateLimitedError) throw e;
     console.error(
       `[prompts] main pass FAILED ${from}-${to} after ${Date.now() - t0}ms:`,
       e instanceof Error ? e.message : e,
