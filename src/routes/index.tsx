@@ -248,6 +248,7 @@ async function getPrompts(input: PromptRequest): Promise<{ prompts: string[] }> 
   let buffer = "";
   let result: string[] | undefined;
   let failure: string | undefined;
+  let limited = false;
 
   const consume = (frame: string) => {
     let event = "message";
