@@ -208,6 +208,13 @@ async function callAgnes(user: string, opts: ChatOptions): Promise<string> {
         );
 
 
+        // A Cloudflare rate limit is answered in a few ms and stays in force
+        // while it keeps being hit. Give up immediately and let the caller wait
+        // instead of burning the remaining attempts against a closed door.
+        if (rateLimited(res.status, body)) {
+          throw new RateLimitedError(body.slice(0, 120) || `HTTP ${res.status}`);
+        }
+
         if (busy(res.status, body)) {
           // Retry-After is CLAMPED: a rate-limited account (Cloudflare 1015)
           // reports multi-minute waits, and honouring them froze the run.
