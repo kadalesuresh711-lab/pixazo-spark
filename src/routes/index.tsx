@@ -299,7 +299,7 @@ async function getPrompts(input: PromptRequest): Promise<{ prompts: string[] }> 
   if (buffer.trim()) consume(buffer);
   if (failure) {
     console.error(`[client] prompts ${label} FAILED at ${Date.now() - t0}ms: ${failure}`);
-    throw new Error(failure);
+    throw Object.assign(new Error(failure), { rateLimited: limited });
   }
   if (!result) {
     console.error(`[client] prompts ${label} stream ended with no result at ${Date.now() - t0}ms`);
