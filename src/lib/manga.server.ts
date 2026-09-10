@@ -1395,31 +1395,17 @@ export async function renderPanel(
   const errors: string[] = [];
   let tries = 0;
 
-  // TIMESTAMP FIDELITY GATE — rescue only.
+  // NO TEXT CALLS ON THE RENDER PATH.
   //
-  // This used to send EVERY panel's prompt to the text model for approval, and
-  // the model rewrote prompts it had judged "not this moment" while seeing only
-  // one isolated line. On a long script that fired thousands of times, and each
-  // rewrite replaced a correct, whole-script prompt with a scene the checker
-  // invented — which is exactly how finished panels ended up showing something
-  // completely different from the script. It also drained the daily text quota.
-  //
-  // The prompts now come from a model that has read the ENTIRE script, so a
-  // prompt is trusted by default. The checker is called ONLY when a prompt
-  // shares no content word at all with its own English line — a real sign it
-  // was written from somewhere else.
-  let prompt = written;
-  let rewritten = false;
-  if (line && isEnglishish(line) && !mentionsLine(written, line)) {
-    const vetted = await verifyPromptForLine(written, line, bible, timestamp);
-    prompt = vetted.prompt;
-    rewritten = vetted.rewritten;
-    if (rewritten) {
-      console.warn(
-        `timestamp fidelity: prompt for ${timestamp ? `[${timestamp}] ` : ""}line matched no word of its own line — regenerated for this line`,
-      );
-    }
-  }
+  // Prompt writing already receives each exact timestamp and its own script
+  // line, so the prompt is drawn as written. The old per-panel re-check and
+  // post-render review fired one rate-limited text request per panel while
+  // panels rendered in parallel, which is what triggered the provider's
+  // rate limit and stalled runs. Timestamp parsing and prompt-to-line mapping
+  // are unchanged.
+  const prompt = written;
+  const rewritten = false;
+  void timestamp;
 
   // The prompt as written for this line, retried in full on fresh seeds.
   let refused = false;
