@@ -130,6 +130,9 @@ export const renderBatch = createServerFn({ method: "POST" })
           );
           return { index: job.index, url, prompt, rewritten };
         } catch (e) {
+          // Insta Kill is cancellation for the WHOLE batch, never a set of
+          // ordinary failed panels that the browser would then re-queue.
+          if (e instanceof KilledError) throw e;
           const msg = e instanceof Error ? e.message : String(e);
           console.error(`[render] panel ${job.index} failed: ${msg}`);
           return {
