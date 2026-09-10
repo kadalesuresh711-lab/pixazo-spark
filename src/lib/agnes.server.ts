@@ -29,10 +29,20 @@ function apiKey(): string {
 const MAX_OUT = 60_000;
 /** Minimum gap between two request STARTS (spaces the account's rate limit). */
 const MIN_GAP_MS = 1_200;
-/** How many requests may be in flight at the same time (several visitors). */
-const MAX_IN_FLIGHT = 4;
+/**
+ * Exactly ONE text request may be in flight per server process. The provider
+ * answers Cloudflare error 1015 as soon as calls overlap, and a rate-limited
+ * account then hands back multi-minute waits that stall a whole run.
+ */
+const MAX_IN_FLIGHT = 1;
 /** Longest a call may wait for its turn before giving up instead of hanging. */
 const MAX_QUEUE_WAIT_MS = 120_000;
+/**
+ * No retry ever waits longer than this, whatever the provider asks for in a
+ * Retry-After header. A provider-supplied multi-minute wait is what kept one
+ * prompt request open for ~15 minutes while heartbeats made the page look busy.
+ */
+const MAX_RETRY_DELAY_MS = 5_000;
 
 let lastUsed = 0;
 let inFlight = 0;
@@ -40,11 +50,22 @@ const waiting: (() => void)[] = [];
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
+/** Waits in short slices, giving up the moment the run is killed. */
+async function backoff(ms: number): Promise<void> {
+  const total = Math.max(0, Math.min(ms, MAX_RETRY_DELAY_MS));
+  const step = 250;
+  for (let waited = 0; waited < total; waited += step) {
+    assertRunAlive();
+    await sleep(Math.min(step, total - waited));
+  }
+  assertRunAlive();
+}
+
 /**
- * Takes a slot. Several visitors can be served at once (up to MAX_IN_FLIGHT);
- * request starts are still spaced by MIN_GAP_MS so the provider's rate limit is
- * never raced. A caller that cannot get a slot in time fails fast instead of
- * making the page look stuck forever.
+ * Takes the single text slot. Request starts are also spaced by MIN_GAP_MS so
+ * the provider's rate limit is never raced. A caller that cannot get the slot
+ * in time fails fast instead of making the page look stuck forever, and queued
+ * work stops immediately when the run is killed.
  */
 async function acquire(): Promise<void> {
   if (inFlight >= MAX_IN_FLIGHT) {
@@ -61,6 +82,8 @@ async function acquire(): Promise<void> {
       waiting.push(wake);
     });
   }
+  // Whatever happened while queueing, a killed run never takes the slot.
+  assertRunAlive();
   inFlight++;
   const gap = MIN_GAP_MS - (Date.now() - lastUsed);
   if (gap > 0) await sleep(gap);
