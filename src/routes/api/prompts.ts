@@ -38,6 +38,7 @@ export const Route = createFileRoute("/api/prompts")({
         }
 
         const encoder = new TextEncoder();
+        let cleanup: (() => void) | undefined;
         const stream = new ReadableStream<Uint8Array>({
           start(controller) {
             let closed = false;
