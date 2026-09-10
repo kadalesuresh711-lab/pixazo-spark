@@ -735,7 +735,7 @@ function Index() {
             `[client] worker ${me} drawing panels ${group.map((g) => g.seg.index + 1).join(",")} · queue=${queue.length}`,
           );
           try {
-            const { results } = await drawBatch({
+            const { results, cancelled } = await drawBatch({
               data: {
                 ...stamp(),
                 bible: b,
@@ -749,6 +749,8 @@ function Index() {
                 })),
               },
             });
+            // Insta Kill / superseded run: stop without re-queuing anything.
+            if (cancelled) return;
             await Promise.all(
               results.map(async (r) => {
                 const job = group.find((g) => g.seg.index === r.index);
