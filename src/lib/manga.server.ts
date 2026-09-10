@@ -199,7 +199,7 @@ export async function buildCharacterBible(script: string): Promise<string> {
     const bible = stripFences(out).slice(0, 4000);
     if (bible.length > 20) return bible;
   } catch (e) {
-    if (e instanceof KilledError) throw e;
+    if (e instanceof KilledError || e instanceof RateLimitedError) throw e;
     console.error("buildCharacterBible failed, continuing without a bible:", e);
   }
   return "";
