@@ -129,15 +129,6 @@ const IMAGE_BATCH = 4;
  */
 const CLIENT_BLANK_CHECK = false;
 const PROMPT_IDLE_TIMEOUT_MS = 45_000;
-/**
- * The text provider sits behind Cloudflare, which starts refusing every call
- * with "error code: 1015" once the live server has used it heavily — and keeps
- * refusing for as long as it is hit. So the page waits this long before asking
- * again (doubling each time), instead of retrying instantly and holding the
- * block open, which is what made a third script sit on "Reading script…".
- */
-const RATE_LIMIT_WAIT_MS = 60_000;
-const RATE_LIMIT_MAX_WAITS = 6;
 /** Panels shown in the preview grid before "show all" (a 2h script has 1000+). */
 const PREVIEW_LIMIT = 60;
 
@@ -257,7 +248,6 @@ async function getPrompts(input: PromptRequest): Promise<{ prompts: string[] }> 
   let buffer = "";
   let result: string[] | undefined;
   let failure: string | undefined;
-  let limited = false;
 
   const consume = (frame: string) => {
     let event = "message";
@@ -268,17 +258,10 @@ async function getPrompts(input: PromptRequest): Promise<{ prompts: string[] }> 
     }
     if (data.length === 0) return;
     events++;
-    const payload = JSON.parse(data.join("\n")) as {
-      prompts?: string[];
-      error?: string;
-      rateLimited?: boolean;
-    };
+    const payload = JSON.parse(data.join("\n")) as { prompts?: string[]; error?: string };
     console.log(`[client] prompts ${label} event "${event}" at ${Date.now() - t0}ms`);
     if (event === "result" && Array.isArray(payload.prompts)) result = payload.prompts;
-    if (event === "failure") {
-      failure = payload.error || "Prompt generation failed";
-      limited = payload.rateLimited === true;
-    }
+    if (event === "failure") failure = payload.error || "Prompt generation failed";
   };
 
   for (;;) {
@@ -308,7 +291,7 @@ async function getPrompts(input: PromptRequest): Promise<{ prompts: string[] }> 
   if (buffer.trim()) consume(buffer);
   if (failure) {
     console.error(`[client] prompts ${label} FAILED at ${Date.now() - t0}ms: ${failure}`);
-    throw Object.assign(new Error(failure), { rateLimited: limited });
+    throw new Error(failure);
   }
   if (!result) {
     console.error(`[client] prompts ${label} stream ended with no result at ${Date.now() - t0}ms`);
@@ -613,45 +596,6 @@ function Index() {
         text: s.text,
       }));
 
-      /**
-       * Every prompt request goes through here so the whole page shares ONE
-       * cooldown. When the text provider answers "rate limited" (Cloudflare
-       * 1015), asking again straight away keeps the block in place, so the run
-       * pauses, tells the user, and then retries the very same range.
-       */
-      const askPrompts = async (input: PromptRequest): Promise<{ prompts: string[] }> => {
-        let wait = RATE_LIMIT_WAIT_MS;
-        for (let attempt = 0; attempt <= RATE_LIMIT_MAX_WAITS; attempt++) {
-          try {
-            return await getPrompts(input);
-          } catch (e) {
-            const limited = (e as { rateLimited?: boolean }).rateLimited === true;
-            if (!limited || attempt === RATE_LIMIT_MAX_WAITS || cancelRef.current) {
-              if (limited) {
-                throw Object.assign(
-                  new Error(
-                    "The text service is still rate limiting this site. Nothing was lost — " +
-                      "press Resume in a few minutes and it will carry on from here.",
-                  ),
-                  { fatal: true },
-                );
-              }
-              throw e;
-            }
-            const until = Date.now() + wait;
-            while (Date.now() < until && !cancelRef.current && isCurrentRun()) {
-              const left = Math.ceil((until - Date.now()) / 1000);
-              if (isCurrentRun())
-                setNote(`Text service is busy (rate limited) — waiting ${left}s, then continuing…`);
-              await new Promise((r) => setTimeout(r, 1000));
-            }
-            if (cancelRef.current || !isCurrentRun()) throw e;
-            wait = Math.min(wait * 2, 10 * 60_000);
-          }
-        }
-        throw new Error("Prompt request failed");
-      };
-
       const promptStage = (async () => {
         console.log(
           `[client] prompt stage: ${ranges.length} ranges for ${needPrompts.length} lines of ${total}`,
@@ -791,7 +735,7 @@ function Index() {
             `[client] worker ${me} drawing panels ${group.map((g) => g.seg.index + 1).join(",")} · queue=${queue.length}`,
           );
           try {
-            const { results, cancelled } = await drawBatch({
+            const { results } = await drawBatch({
               data: {
                 ...stamp(),
                 bible: b,
@@ -805,8 +749,6 @@ function Index() {
                 })),
               },
             });
-            // Insta Kill / superseded run: stop without re-queuing anything.
-            if (cancelled) return;
             await Promise.all(
               results.map(async (r) => {
                 const job = group.find((g) => g.seg.index === r.index);

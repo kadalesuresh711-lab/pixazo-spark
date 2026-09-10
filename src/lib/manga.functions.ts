@@ -109,9 +109,8 @@ export const renderBatch = createServerFn({ method: "POST" })
       })
       .parse(d),
   )
-  .handler(async ({ data }) => {
-    try {
-      return await withRun(data.runAt, async () => {
+  .handler(async ({ data }) =>
+    withRun(data.runAt, async () => {
     const t0 = Date.now();
     const idx = data.jobs.map((j) => j.index).join(",");
     console.log(`[render] batch START panels ${idx}`);
@@ -148,15 +147,6 @@ export const renderBatch = createServerFn({ method: "POST" })
     console.log(
       `[render] batch DONE panels ${idx} in ${Date.now() - t0}ms: ${ok}/${results.length} rendered`,
     );
-    return { results, cancelled: false };
-      });
-    } catch (e) {
-      // Cancellation must not cross the RPC boundary as a thrown error: that
-      // becomes a 500 HTML error page and blanks the browser. Report it as data.
-      if (e instanceof KilledError) {
-        console.log("[render] batch cancelled by Insta Kill");
-        return { results: [], cancelled: true };
-      }
-      throw e;
-    }
-  });
+    return { results };
+    }),
+  );

@@ -81,11 +81,6 @@ export const Route = createFileRoute("/api/prompts")({
               .catch((error) =>
                 send("failure", {
                   error: error instanceof Error ? error.message : String(error),
-                  // The browser is the only place that can hold one shared
-                  // cooldown for every request, so tell it when the text
-                  // provider is rate limiting this server.
-                  rateLimited:
-                    error instanceof Error && error.name === "RateLimitedError",
                 }),
               )
               .then(finish, finish);
