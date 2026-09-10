@@ -820,6 +820,8 @@ function Index() {
         ...Array.from({ length: IMAGE_CONCURRENCY }, () => worker()),
       ]);
 
+      // A superseded run never marks the page complete.
+      if (!isCurrentRun()) return;
       await checkpoint(cancelRef.current ? "stopped" : "done");
       setPhase("done");
       const bad = list.filter((s) => !s.url).length;
@@ -832,6 +834,7 @@ function Index() {
           : "All panels generated · every timestamp has its own prompt.",
       );
     } catch (e) {
+      if (!isCurrentRun()) return;
       if (list.length > 0) {
         const data = { script: sourceScript, bible: b, shots: list, state: "error" as const };
         activeRunRef.current = { key, data };
