@@ -804,8 +804,7 @@ function Index() {
             // Insta Kill / a superseded run is cancellation for the whole
             // batch: stop, never re-queue the panels as ordinary failures.
             if (/Insta Kill|cancelled|KilledError/i.test(msg) || !isCurrentRun()) {
-              inFlight--;
-              return;
+              return; // the finally below still releases the slot
             }
             group.forEach((g) => requeue(g, msg));
           } finally {
