@@ -749,6 +749,8 @@ function Index() {
                 })),
               },
             });
+            // Insta Kill / superseded run: stop without re-queuing anything.
+            if (cancelled) return;
             await Promise.all(
               results.map(async (r) => {
                 const job = group.find((g) => g.seg.index === r.index);
