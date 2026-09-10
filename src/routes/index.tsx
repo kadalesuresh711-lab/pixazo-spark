@@ -553,6 +553,7 @@ function Index() {
       let lastTick = 0;
       const tick = (force = false) => {
         const now = Date.now();
+        if (!isCurrentRun()) return;
         if (!force && now - lastTick < 300) return;
         lastTick = now;
         setNote(`Prompts ${promptDone}/${total} · panels ${drawn}/${total}`);
@@ -578,10 +579,12 @@ function Index() {
 
       const record = (index: number, next: Partial<Shot>) => {
         list = list.map((x) => (x.index === index ? { ...x, ...next } : x));
+        if (!isCurrentRun()) return;
         patch(index, next);
       };
 
       const persist = () => {
+        if (!isCurrentRun()) return;
         const data = { script: sourceScript, bible: b, shots: list, state: "running" as const };
         activeRunRef.current = { key, data };
       };
