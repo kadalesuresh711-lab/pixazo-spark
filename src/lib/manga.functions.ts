@@ -148,6 +148,15 @@ export const renderBatch = createServerFn({ method: "POST" })
     console.log(
       `[render] batch DONE panels ${idx} in ${Date.now() - t0}ms: ${ok}/${results.length} rendered`,
     );
-    return { results };
-    }),
-  );
+    return { results, cancelled: false };
+      });
+    } catch (e) {
+      // Cancellation must not cross the RPC boundary as a thrown error: that
+      // becomes a 500 HTML error page and blanks the browser. Report it as data.
+      if (e instanceof KilledError) {
+        console.log("[render] batch cancelled by Insta Kill");
+        return { results: [], cancelled: true };
+      }
+      throw e;
+    }
+  });
