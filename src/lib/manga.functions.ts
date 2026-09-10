@@ -109,8 +109,9 @@ export const renderBatch = createServerFn({ method: "POST" })
       })
       .parse(d),
   )
-  .handler(async ({ data }) =>
-    withRun(data.runAt, async () => {
+  .handler(async ({ data }) => {
+    try {
+      return await withRun(data.runAt, async () => {
     const t0 = Date.now();
     const idx = data.jobs.map((j) => j.index).join(",");
     console.log(`[render] batch START panels ${idx}`);
